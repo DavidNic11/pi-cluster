@@ -2,8 +2,8 @@
 
 # Define hostname anchor at the top of the file
 _shared_config:
-  hostname: &hostname n8n-dev.local.com
-  url: &url https://n8n-dev.local.com
+  hostname: &hostname n8n.davidnicholas.dev
+  url: &url https://n8n.davidnicholas.dev
 
 image:
   repository: n8nio/n8n
@@ -13,6 +13,8 @@ imagePullSecrets:
   - name: 8gears-registry-n8n
 
 main:
+  service:
+    type: LoadBalancer
   config:
     n8n:
       editor_base_url: *url
@@ -44,6 +46,8 @@ main:
     n8n:
       encryption_key: "W8tzaVl9ZVSMIm0lKLJeEJJNeze0LFADlT9Zvx2H25Q="
   extraEnv: &extraEnv
+    N8N_SECURE_COOKIE:
+      value: "false"
     DB_POSTGRESDB_PASSWORD:
       valueFrom:
         secretKeyRef:
@@ -99,26 +103,33 @@ valkey:
         memory: 256Mi
         cpu: 100m
 
-ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/proxy-body-size: "0"
-    nginx.ingress.kubernetes.io/proxy-buffering: "off"
-    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-  hosts:
-    - host: *hostname
-      paths:
-        - /
-  tls:
-    - secretName: n8n-ingress-tls
-      hosts:
-        - *hostname
-
 # cnpg DB cluster request
 extraManifests:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: n8n
+      # namespace: n8n
+      annotations:
+        kubernetes.io/ingress.class: traefik
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+    spec:
+      ingressClassName: traefik
+      rules:
+        - host: *hostname
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: n8n
+                    port:
+                      number: 80
+      tls:
+        - secretName: n8n-tls
+          hosts:
+            - *hostname
   - apiVersion: postgresql.cnpg.io/v1
     kind: Cluster
     metadata:
